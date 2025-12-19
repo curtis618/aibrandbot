@@ -18,10 +18,25 @@ aibrandbot 是一個為品牌（例如：觀光園區）設計的 LINE Bot 整�
 *   **LINE Liff 網頁任務**：提供豐富的互動介面，引導使用者完成拍照等行銷任務。
 *   **AI 圖像合成**：將使用者提供的兩張照片（個人照與場景照）進行智慧合成，是本專案的核心技術亮點。
 *   **個人化行銷**：為每位參與者創造獨一無二的紀念品，提升活動吸引力與個人化體驗。
+*   **智慧客服助手**：整合 Google Gemini AI，提供 24/7 的自然語言問答服務，能自動查詢活動資訊、介紹工作室，並以圖文並茂的 Flex Message 回覆。
 
-## 潛在技術棧
+## 技術架構 (Technical Architecture)
 
-*   **後端**：Node.js (Express / Koa), Python (Django / Flask)
+*   **後端框架**：Python Django 4.2
+*   **AI 模型**：Google Gemini Pro (gemini-2.5-flash)
+    *   應用：自然語言理解 (NLU)、意圖識別、Function Calling
+*   **訊息平台**：LINE Messaging API
+    *   功能：Webhook, Reply Message, Loading Animation, Flex Message (Bubble, Carousel)
+*   **資料庫**：SQLite (開發階段) / 可遷移至 PostgreSQL
+*   **套件管理**：
+    *   `django`: Web 框架
+    *   `google-generativeai`: Gemini API SDK
+    *   `requests`: HTTP 請求處理
+    *   `python-dotenv`: 環境變數管理
+
+## 潛在技術棧 (Future Roadmap)
+
+*   **前端**：React / Vue.js / Next.js for LIFF application
 *   **前端**：React / Vue.js / Next.js for LIFF application
 *   **AI / 機器學習**：圖像處理相關函式庫 (e.g., OpenCV, Pillow) 搭配生成式 AI 模型 (e.g., Stable Diffusion, GANs)
 *   **資料庫**：PostgreSQL / MySQL / MongoDB
