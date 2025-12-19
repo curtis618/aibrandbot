@@ -33,15 +33,3 @@ aibrandbot 是一個為品牌（例如：觀光園區）設計的 LINE Bot 整�
     *   `google-generativeai`: Gemini API SDK
     *   `requests`: HTTP 請求處理
     *   `python-dotenv`: 環境變數管理
-
-## 潛在技術棧 (Future Roadmap)
-
-*   **前端**：React / Vue.js / Next.js for LIFF application
-*   **前端**：React / Vue.js / Next.js for LIFF application
-*   **AI / 機器學習**：圖像處理相關函式庫 (e.g., OpenCV, Pillow) 搭配生成式 AI 模型 (e.g., Stable Diffusion, GANs)
-*   **資料庫**：PostgreSQL / MySQL / MongoDB
-*   **部署**：Docker / Kubernetes / Heroku / Vercel
-
----
-
-這是一個根據您提供的新資訊更新的版本。若有更多細節，例如所使用的具體 AI 模型或技術，我可以再做更深入的補充。
