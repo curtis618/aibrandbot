@@ -1,13 +1,100 @@
 import os
-import google.generativeai as genai
+import uuid
+import mimetypes
+from django.conf import settings
+from google import genai
+from google.genai import types
+import google.generativeai as old_genai # 保留舊的 SDK 用於文字對話
 from .models import Activity
 
 # 從環境變數讀取 API Key
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-# 設定 Gemini API
+# 設定 Gemini API (舊版 SDK)
 if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
+    old_genai.configure(api_key=GEMINI_API_KEY)
+
+def gen_ai_img(prompt: str, request=None) -> str:
+    """
+    使用 Gemini 3 Pro Image Preview 生成圖片，並回傳圖片網址
+    """
+    if not GEMINI_API_KEY:
+        return "https://via.placeholder.com/1024x1024?text=No+API+Key"
+
+    try:
+        client = genai.Client(api_key=GEMINI_API_KEY)
+        model = "gemini-3-pro-image-preview" # 目前可用的生圖模型，或使用 gemini-3-pro-image-preview 如果您有權限
+
+        contents = [
+            types.Content(
+                role="user",
+                parts=[
+                    types.Part.from_text(text=prompt),
+                ],
+            ),
+        ]
+        
+        generate_content_config = types.GenerateContentConfig(
+            response_modalities=["IMAGE"],
+            # image_config=types.ImageConfig(image_size="1K"), # 修正參數名稱
+        )
+
+        # 確保 media 目錄存在
+        save_dir = os.path.join(settings.MEDIA_ROOT, 'generated_images')
+        os.makedirs(save_dir, exist_ok=True)
+
+        image_url = ""
+        
+        # 使用非串流方式簡化處理，或者使用串流
+        # 這裡依照您的範例使用串流
+        for chunk in client.models.generate_content_stream(
+            model=model,
+            contents=contents,
+            config=generate_content_config,
+        ):
+            if not chunk.candidates or not chunk.candidates[0].content or not chunk.candidates[0].content.parts:
+                continue
+                
+            part = chunk.candidates[0].content.parts[0]
+            
+            # 檢查是否有圖片資料
+            if part.inline_data and part.inline_data.data:
+                # 生成唯一檔名
+                file_name = f"{uuid.uuid4()}"
+                mime_type = part.inline_data.mime_type
+                ext = mimetypes.guess_extension(mime_type) or ".png"
+                full_filename = f"{file_name}{ext}"
+                file_path = os.path.join(save_dir, full_filename)
+                
+                # 儲存檔案
+                with open(file_path, "wb") as f:
+                    f.write(part.inline_data.data)
+                
+                print(f"Image saved to: {file_path}")
+                
+                # 產生 URL
+                relative_path = f"media/generated_images/{full_filename}"
+                if request:
+                    image_url = request.build_absolute_uri(f"/{relative_path}")
+                    # 強制將 http 轉為 https (針對 ngrok 環境)
+                    if image_url.startswith("http://") and "ngrok" in image_url:
+                        image_url = image_url.replace("http://", "https://")
+                else:
+                    image_url = f"/{relative_path}" # Fallback
+                
+                print(f"Generated Image URL: {image_url}")
+                # 找到第一張圖就回傳 (通常只有一張)
+                return image_url
+                
+    except Exception as e:
+        print(f"Gemini Image Gen Error: {e}")
+        # 發生錯誤時回傳錯誤圖示或原本的 Pollinations 作為備援
+        import urllib.parse
+        encoded_prompt = urllib.parse.quote(prompt)
+        return f"https://image.pollinations.ai/prompt/{encoded_prompt}"
+
+    return "https://via.placeholder.com/1024x1024?text=Generation+Failed"
+
 
 def get_activity_card(activity_name: str):
     """
@@ -192,8 +279,8 @@ def get_gemini_response(user_text: str):
         return "系統設定錯誤：找不到 GEMINI_API_KEY，請檢查 .env 檔案。"
 
     try:
-        # 初始化模型
-        model = genai.GenerativeModel(
+        # 初始化模型 (使用舊版 SDK)
+        model = old_genai.GenerativeModel(
             model_name='gemini-2.5-flash', 
             tools=my_tools
         )

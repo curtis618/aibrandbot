@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 創意生圖</title>
+    <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #f8f9fa;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .container {
+            width: 100%;
+            max-width: 400px;
+            background: white;
+            padding: 2rem;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        h1 {
+            color: #333;
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            box-sizing: border-box;
+            font-size: 16px;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            margin-bottom: 10px;
+        }
+        .btn-primary {
+            background-color: #00B900;
+            color: white;
+        }
+        .btn-primary:disabled {
+            background-color: #ccc;
+        }
+        .btn-secondary {
+            background-color: #6c757d;
+            color: white;
+        }
+        #result-area {
+            margin-top: 20px;
+            display: none;
+        }
+        #generated-image {
+            width: 100%;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .loading {
+            display: none;
+            color: #666;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>✨ AI 創意生圖</h1>
+        
+        <div id="input-area">
+            <input type="text" id="prompt-input" placeholder="請輸入描述 (例如: 一隻在太空喝咖啡的貓)" value="Cyberpunk city with neon lights">
+            <button id="generate-btn" class="btn-primary" onclick="generateImage()">開始生成圖片</button>
+        </div>
+
+        <div class="loading" id="loading">
+            正在施展 AI 魔法中...請稍候 🎨
+        </div>
+
+        <div id="result-area">
+            <img id="generated-image" src="" alt="Generated Image">
+            <button id="send-btn" class="btn-primary" onclick="sendToLine()">傳送到聊天室</button>
+            <button class="btn-secondary" onclick="reset()">重新生成</button>
+        </div>
+        
+        <div id="status" style="margin-top: 15px; color: #666; font-size: 0.9rem;"></div>
+    </div>
+
+    <script>
+        // 請確認此處為您的 LIFF ID
+        const LIFF_ID = "2008756465-yyrzaKfY"; 
+        let currentImageUrl = "";
+        let currentUserId = "";
+
+        async function initLiff() {
+            try {
+                await liff.init({ liffId: LIFF_ID });
+                if (!liff.isLoggedIn()) {
+                    liff.login();
+                } else {
+                    const profile = await liff.getProfile();
+                    currentUserId = profile.userId;
+                }
+            } catch (err) {
+                console.error('LIFF Initialization failed', err);
+                document.getElementById('status').innerText = "LIFF 初始化失敗";
+            }
+        }
+
+        async function generateImage() {
+            const prompt = document.getElementById('prompt-input').value;
+            if (!prompt) {
+                alert("請輸入描述！");
+                return;
+            }
+
+            document.getElementById('input-area').style.display = 'none';
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('status').innerText = "";
+
+            try {
+                const response = await fetch('/bot/liff/generate/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt: prompt })
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    currentImageUrl = data.image_url;
+                    document.getElementById('generated-image').src = currentImageUrl;
+                    
+                    // 圖片載入完成後再顯示
+                    document.getElementById('generated-image').onload = function() {
+                        document.getElementById('loading').style.display = 'none';
+                        document.getElementById('result-area').style.display = 'block';
+                    };
+                } else {
+                    throw new Error(data.error || '生成失敗');
+                }
+            } catch (err) {
+                console.error(err);
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('input-area').style.display = 'block';
+                document.getElementById('status').innerText = "生成失敗：" + err.message;
+            }
+        }
+
+        async function sendToLine() {
+            if (!currentUserId || !currentImageUrl) return;
+
+            const sendBtn = document.getElementById('send-btn');
+            sendBtn.disabled = true;
+            sendBtn.innerText = "傳送中...";
+
+            try {
+                const response = await fetch('/bot/liff/send/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        userId: currentUserId,
+                        imageUrl: currentImageUrl
+                    })
+                });
+
+                if (response.ok) {
+                    document.getElementById('status').innerText = "已傳送！請查看聊天室 ✅";
+                    setTimeout(() => liff.closeWindow(), 2000);
+                } else {
+                    throw new Error('傳送失敗');
+                }
+            } catch (err) {
+                console.error(err);
+                document.getElementById('status').innerText = "傳送失敗，請重試";
+                sendBtn.disabled = false;
+                sendBtn.innerText = "傳送到聊天室";
+            }
+        }
+
+        function reset() {
+            document.getElementById('result-area').style.display = 'none';
+            document.getElementById('input-area').style.display = 'block';
+            document.getElementById('prompt-input').value = "";
+            document.getElementById('status').innerText = "";
+        }
+
+        // 啟動 LIFF
+        initLiff();
+    </script>
+</body>
+</html>

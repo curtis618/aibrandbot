@@ -7,7 +7,8 @@ import requests
 
 from django.http import HttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-from .ai_reply import get_gemini_response
+from django.shortcuts import render
+from .ai_reply import get_gemini_response, get_studio_introduction, gen_ai_img
 
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
 LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET", "")
@@ -69,6 +70,59 @@ def send_loading_animation(chat_id: str, loading_seconds: int = 20):
     except Exception as e:
         print(f"Failed to send loading animation: {e}")
 
+def liff_entry(request):
+    """
+    回傳 LIFF 的 HTML 頁面
+    """
+    return render(request, 'liff_index.html')
+
+@csrf_exempt
+def liff_trigger(request):
+    """
+    接收 LIFF 傳來的 userId，並主動推播訊息給使用者
+    """
+    if request.method != "POST":
+        return JsonResponse({"error": "Method not allowed"}, status=405)
+
+    try:
+        data = json.loads(request.body)
+        user_id = data.get("userId")
+        
+        if not user_id:
+            return JsonResponse({"error": "userId is required"}, status=400)
+
+        # 這裡可以自訂要回傳的訊息，例如歡迎訊息或工作室介紹
+        # 範例：回傳工作室介紹卡片
+        welcome_message = get_studio_introduction()
+        
+        # 使用 Push Message API 主動推播
+        token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
+        url = "https://api.line.me/v2/bot/message/push"
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        }
+        
+        # 判斷是 Flex Message 還是純文字
+        if isinstance(welcome_message, dict) and welcome_message.get("type") == "flex":
+            messages = [welcome_message]
+        else:
+            messages = [{"type": "text", "text": str(welcome_message)}]
+
+        payload = {
+            "to": user_id,
+            "messages": messages
+        }
+        
+        r = requests.post(url, headers=headers, json=payload, timeout=30)
+        r.raise_for_status()
+        
+        return JsonResponse({"status": "success"})
+
+    except Exception as e:
+        print(f"Push message failed: {e}")
+        return JsonResponse({"error": str(e)}, status=500)
+
 @csrf_exempt
 def webhook(request):
     if request.method != "POST":
@@ -103,3 +157,72 @@ def webhook(request):
         line_reply(reply_token, ai_text)
 
     return HttpResponse("OK")
+
+@csrf_exempt
+def generate_image_api(request):
+    """
+    模擬 AI 生圖 API
+    接收 prompt，回傳生成的圖片網址
+    """
+    if request.method != "POST":
+        return JsonResponse({"error": "Method not allowed"}, status=405)
+
+    try:
+        data = json.loads(request.body)
+        prompt = data.get("prompt", "cute robot")
+        
+        # 使用 ai_reply.py 中的 gen_ai_img 函式，並傳入 request 以建立完整 URL
+        image_url = gen_ai_img(prompt, request)
+        
+        return JsonResponse({"status": "success", "image_url": image_url})
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+@csrf_exempt
+def send_generated_image(request):
+    """
+    將生成的圖片發送給 LINE 使用者
+    """
+    if request.method != "POST":
+        return JsonResponse({"error": "Method not allowed"}, status=405)
+
+    try:
+        data = json.loads(request.body)
+        user_id = data.get("userId")
+        image_url = data.get("imageUrl")
+        
+        if not user_id or not image_url:
+            return JsonResponse({"error": "Missing userId or imageUrl"}, status=400)
+
+        token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
+        url = "https://api.line.me/v2/bot/message/push"
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        }
+        
+        # 建構圖片訊息
+        payload = {
+            "to": user_id,
+            "messages": [
+                {
+                    "type": "image",
+                    "originalContentUrl": image_url,
+                    "previewImageUrl": image_url
+                },
+                {
+                    "type": "text",
+                    "text": "這是您剛剛生成的 AI 圖片！"
+                }
+            ]
+        }
+        
+        r = requests.post(url, headers=headers, json=payload, timeout=30)
+        r.raise_for_status()
+        
+        return JsonResponse({"status": "success"})
+
+    except Exception as e:
+        print(f"Send image failed: {e}")
+        return JsonResponse({"error": str(e)}, status=500)
