@@ -2,5 +2,6 @@ Django>=4.2
 requests
 python-dotenv
 google-generativeai
+google-genai
 gunicorn
 whitenoise
