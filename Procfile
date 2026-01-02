@@ -1,0 +1,1 @@
+web: gunicorn linegemini.wsgi --log-file -
